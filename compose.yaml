@@ -1,0 +1,84 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: sqlite:////data/kvarta.db
+      FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost,http://127.0.0.1}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_API_TIMEOUT: ${TELEGRAM_API_TIMEOUT:-5}
+    volumes:
+      - kvarta_data:/data
+    expose:
+      - "8000"
+    networks:
+      - kvarta_net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ""
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    # For local testing, open http://127.0.0.1:8080.
+    # In production, Caddy is the public entry point on ports 80/443.
+    ports:
+      - "127.0.0.1:${HTTP_PORT:-8080}:80"
+    networks:
+      - kvarta_net
+
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["production"]
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env to your real domain}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+    networks:
+      - kvarta_net
+
+  # Optional polling process for /start and /stop commands.
+  # Enable only when backend/run_telegram_bot.py exists in the project.
+  telegram-bot:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    profiles: ["telegram"]
+    restart: unless-stopped
+    command: ["python", "run_telegram_bot.py"]
+    environment:
+      DATABASE_URL: sqlite:////data/kvarta.db
+      FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost,http://127.0.0.1}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_API_TIMEOUT: ${TELEGRAM_API_TIMEOUT:-5}
+    volumes:
+      - kvarta_data:/data
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - kvarta_net
+
+volumes:
+  kvarta_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  kvarta_net:
+    driver: bridge

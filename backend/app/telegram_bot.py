@@ -1,5 +1,5 @@
+
 import logging
-from html import escape
 
 import httpx
 from sqlalchemy import select
@@ -28,25 +28,33 @@ def _telegram_request(method: str, payload: dict) -> dict:
         timeout=settings.telegram_api_timeout,
     )
     response.raise_for_status()
+
     result = response.json()
     if not result.get("ok"):
-        raise RuntimeError(result.get("description", "Telegram API returned ok=false"))
+        raise RuntimeError(
+            result.get("description", "Telegram API returned ok=false")
+        )
+
     return result
 
 
-def send_chat_message(chat_id: str | int, text: str) -> None:
+def send_chat_message(chat_id: str | int, message: str) -> None:
     _telegram_request(
         "sendMessage",
         {
             "chat_id": chat_id,
-            "text": text,
+            "text": message,
             "disable_web_page_preview": True,
         },
     )
 
 
+def display(value: str | None) -> str:
+    return value or "Не определён"
+
+
 def send_lead_notification(lead: Lead) -> None:
-    """Send a new lead to every chat that has registered with /start."""
+    """Send a lead and its advertising attribution to every subscriber."""
     if not (settings.telegram_bot_token or "").strip():
         return
 
@@ -55,24 +63,30 @@ def send_lead_notification(lead: Lead) -> None:
         if lead.created_at
         else "Не указано"
     )
+
+    first_source = lead.first_utm_source or lead.first_referrer
+    last_source = lead.utm_source or lead.referrer
+
     message = (
-        "☕ Новая заявка — Кварта\n\n"
-        f"Номер заявки: #{lead.id}\n"
-        f"Дата: {created_at}\n"
-        f"Имя: {lead.name}\n"
-        f"Телефон: {lead.phone}\n"
-        f"Интерес: {INTEREST_LABELS.get(lead.interest, lead.interest)}\n"
-        f"Комментарий: {lead.comment or 'Не указан'}"
-    )
+    "☕ Новая заявка — Кварта\n\n"
+    f"Номер заявки: #{lead.id}\n"
+    f"Дата: {created_at}\n"
+    f"Имя: {lead.name}\n"
+    f"Телефон: {lead.phone}\n"
+    f"Интерес: {INTEREST_LABELS.get(lead.interest, lead.interest)}\n"
+    f"Комментарий: {lead.comment or 'Не указан'}"
+)
 
     with SessionLocal() as db:
-        chat_ids = db.scalars(select(TelegramSubscriber.chat_id)).all()
+        chat_ids = db.scalars(
+            select(TelegramSubscriber.chat_id)
+        ).all()
 
     for chat_id in chat_ids:
         try:
             send_chat_message(chat_id, message)
         except Exception:
-            # A blocked/unreachable chat must not prevent delivery to other subscribers.
+            # Ошибка в одном чате не мешает отправке остальным.
             logger.exception(
                 "Could not send Telegram notification for lead #%s to chat %s",
                 lead.id,

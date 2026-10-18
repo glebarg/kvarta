@@ -1,7 +1,7 @@
-import { useState, type FormEvent, type SyntheticEvent } from 'react'
+import { useEffect, useState, type FormEvent, type SyntheticEvent } from 'react'
 import { ArrowDownRight, ArrowRight, Bean, Check, Clock3, Coffee, Instagram, MapPin, Menu, Truck, X } from 'lucide-react'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000'
 
 function handleImageError(event: SyntheticEvent<HTMLImageElement>) {
   const image = event.currentTarget
@@ -21,8 +21,30 @@ const coffees = [
 
 type Interest = 'subscription' | 'one_time' | 'question'
 
-function getTracking() {
+
+type Touch = {
+  page_url: string
+  referrer: string | null
+  utm_source: string | null
+  utm_medium: string | null
+  utm_campaign: string | null
+  utm_content: string | null
+  utm_term: string | null
+  gclid: string | null
+  yclid: string | null
+  captured_at: string
+}
+
+type StoredTracking = {
+  first_touch: Touch
+  last_touch: Touch
+}
+
+const TRACKING_STORAGE_KEY = 'kvarta_attribution_v1'
+
+function getCurrentTouch(): Touch {
   const params = new URLSearchParams(window.location.search)
+
   return {
     page_url: window.location.href,
     referrer: document.referrer || null,
@@ -33,8 +55,97 @@ function getTracking() {
     utm_term: params.get('utm_term'),
     gclid: params.get('gclid'),
     yclid: params.get('yclid'),
+    captured_at: new Date().toISOString(),
   }
 }
+
+function hasAttribution(touch: Touch): boolean {
+  const hasAdParams = Boolean(
+    touch.utm_source ||
+    touch.utm_medium ||
+    touch.utm_campaign ||
+    touch.utm_content ||
+    touch.utm_term ||
+    touch.gclid ||
+    touch.yclid,
+  )
+
+  if (hasAdParams) return true
+  if (!touch.referrer) return false
+
+  try {
+    return new URL(touch.referrer).origin !== window.location.origin
+  } catch {
+    return false
+  }
+}
+
+function captureTracking(): StoredTracking {
+  const current = getCurrentTouch()
+  let stored: StoredTracking | null = null
+
+  try {
+    const raw = localStorage.getItem(TRACKING_STORAGE_KEY)
+    if (raw) stored = JSON.parse(raw) as StoredTracking
+  } catch {
+    // Если данные повреждены или хранилище недоступно,
+    // начнём отслеживание заново.
+  }
+
+  if (!stored?.first_touch || !stored?.last_touch) {
+    stored = {
+      first_touch: current,
+      last_touch: current,
+    }
+  } else if (hasAttribution(current)) {
+    // Обновляем last-touch только при рекламных метках
+    // или переходе с другого сайта.
+    stored.last_touch = current
+  }
+
+  try {
+    localStorage.setItem(TRACKING_STORAGE_KEY, JSON.stringify(stored))
+  } catch {
+    // Заявка всё равно должна отправляться, даже если
+    // браузер запрещает использование localStorage.
+  }
+
+  return stored
+}
+
+function getTracking() {
+  const stored = captureTracking()
+  const first = stored.first_touch
+  const last = stored.last_touch
+
+  return {
+    // Данные последнего рекламного перехода.
+    page_url: window.location.href,
+    referrer: last.referrer,
+    utm_source: last.utm_source,
+    utm_medium: last.utm_medium,
+    utm_campaign: last.utm_campaign,
+    utm_content: last.utm_content,
+    utm_term: last.utm_term,
+    gclid: last.gclid,
+    yclid: last.yclid,
+    last_touch_page_url: last.page_url,
+    last_touch_at: last.captured_at,
+
+    // Данные первого посещения.
+    first_page_url: first.page_url,
+    first_referrer: first.referrer,
+    first_utm_source: first.utm_source,
+    first_utm_medium: first.utm_medium,
+    first_utm_campaign: first.utm_campaign,
+    first_utm_content: first.utm_content,
+    first_utm_term: first.utm_term,
+    first_gclid: first.gclid,
+    first_yclid: first.yclid,
+    first_touch_at: first.captured_at,
+  }
+}
+
 
 export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -44,7 +155,9 @@ export default function App() {
   const [comment, setComment] = useState('')
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [submitting, setSubmitting] = useState(false)
-
+  useEffect(() => {
+  captureTracking()
+}, [])
   async function submitLead(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setStatus(null)
@@ -181,7 +294,7 @@ export default function App() {
               <p>Наш свежеобжаренный кофе в удобном формате. Нужна только чашка и кипяток — дома, в офисе или в поездке.</p>
             </div>
             <div className="drip-purchase">
-              <strong className="drip-price">18 <small>BYN</small></strong>
+              <strong className="drip-price">18  <small>BYN </small></strong>
               <button className="button button-dark" onClick={() => { setInterest('one_time'); setComment('Заказ: Дрип-пакеты "Ассорти" (10 шт)'); document.getElementById('request')?.scrollIntoView({ behavior: 'smooth' }) }}>
                 Купить набор <ArrowRight size={15} />
               </button>

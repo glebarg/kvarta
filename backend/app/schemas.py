@@ -24,12 +24,11 @@ def normalize_belarus_phone(value: str) -> str:
 
 
 class LeadCreate(BaseModel):
-    model_config = ConfigDict(str_strip_whitespace=True)
-
     name: str = Field(min_length=2, max_length=100)
     phone: str = Field(min_length=7, max_length=32)
-    interest: Interest
+    interest: Literal["subscription", "one_time", "question"]
     comment: str | None = Field(default=None, max_length=2000)
+
     page_url: str | None = Field(default=None, max_length=2048)
     referrer: str | None = Field(default=None, max_length=2048)
     utm_source: str | None = Field(default=None, max_length=255)
@@ -40,24 +39,44 @@ class LeadCreate(BaseModel):
     gclid: str | None = Field(default=None, max_length=255)
     yclid: str | None = Field(default=None, max_length=255)
 
+    last_touch_page_url: str | None = Field(default=None, max_length=2048)
+    last_touch_at: str | None = Field(default=None, max_length=40)
+
+    first_page_url: str | None = Field(default=None, max_length=2048)
+    first_referrer: str | None = Field(default=None, max_length=2048)
+    first_utm_source: str | None = Field(default=None, max_length=255)
+    first_utm_medium: str | None = Field(default=None, max_length=255)
+    first_utm_campaign: str | None = Field(default=None, max_length=255)
+    first_utm_content: str | None = Field(default=None, max_length=255)
+    first_utm_term: str | None = Field(default=None, max_length=255)
+    first_gclid: str | None = Field(default=None, max_length=255)
+    first_yclid: str | None = Field(default=None, max_length=255)
+    first_touch_at: str | None = Field(default=None, max_length=40)
+
     @field_validator("name")
     @classmethod
     def validate_name(cls, value: str) -> str:
-        if len(value.strip()) < 2:
-            raise ValueError("Введите имя (не менее двух символов).")
-        return value.strip()
+        value = value.strip()
+        if len(value) < 2:
+            raise ValueError("Укажите имя не короче двух символов")
+        return value
 
     @field_validator("phone")
     @classmethod
     def validate_phone(cls, value: str) -> str:
-        return normalize_belarus_phone(value)
-
-    @field_validator("page_url", "referrer")
-    @classmethod
-    def validate_url(cls, value: str | None) -> str | None:
-        if value and urlparse(value).scheme not in {"http", "https"}:
-            raise ValueError("Некорректный адрес страницы.")
+        value = value.strip()
+        digits = re.sub(r"\D", "", value)
+        if not 7 <= len(digits) <= 15:
+            raise ValueError("Укажите корректный номер телефона")
         return value
+
+    @field_validator("comment")
+    @classmethod
+    def normalize_comment(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        return value or None
 
 
 class LeadCreated(BaseModel):
