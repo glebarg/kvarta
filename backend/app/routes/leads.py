@@ -4,9 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.models import Lead
 from app.schemas import LeadCreate, LeadCreated
+from app.telegram_bot import send_lead_notification
 
 router = APIRouter(tags=["leads"])
 DUPLICATE_WINDOW = timedelta(minutes=10)
@@ -53,4 +55,8 @@ def create_lead(payload: LeadCreate, db: Session = Depends(get_db)):
     db.add(lead)
     db.commit()
     db.refresh(lead)
+
+    # Сначала сохраняем заявку в БД, затем отправляем уведомление в Telegram.
+    send_lead_notification(lead)
+
     return LeadCreated(id=lead.id, message="Заявка отправлена. Мы скоро вам позвоним.")

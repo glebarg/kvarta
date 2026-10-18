@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Index, Integer, String, Text
+from sqlalchemy import DateTime, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -27,6 +27,19 @@ class Lead(Base):
     utm_term: Mapped[str | None] = mapped_column(String(255), nullable=True)
     gclid: Mapped[str | None] = mapped_column(String(255), nullable=True)
     yclid: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+
+class TelegramSubscriber(Base):
+    __tablename__ = "telegram_subscribers"
+    __table_args__ = (UniqueConstraint("chat_id", name="uq_telegram_subscribers_chat_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    chat_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    username: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    first_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
