@@ -1,37 +1,31 @@
-
-# Python
-__pycache__/
-*.py[cod]
-*.pyd
-*.so
-.Python
-.venv/
-venv/
-env/
-ENV/
-
-# Testing and coverage
-.pytest_cache/
-.coverage
-.coverage.*
-htmlcov/
-.tox/
-.nox/
-
-# Type checking and linters
-.mypy_cache/
-.ruff_cache/
-.pyright/
-
 # Environment variables and secrets
 .env
 .env.*
 !.env.example
+!.env.docker.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
 
 # Local databases
 *.db
 *.sqlite
 *.sqlite3
+*.db-journal
 
 # Logs
 *.log
@@ -39,27 +33,35 @@ logs/
 
 # Node.js
 node_modules/
-frontend/node_modules/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
 
-# Frontend build output
+# Frontend build
 dist/
-frontend/dist/
-
-# Tool caches
+build/
 .vite/
-.cache/
 
-# Editors and IDEs
+# Docker overrides
+docker-compose.override.yaml
+docker-compose.override.yml
+
+# IDEs and editors
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# Operating system files
+# Operating system
 .DS_Store
 Thumbs.db
 Desktop.ini
 
 # Temporary files
 *.tmp
+*.temp
 *.bak
+
+# Local configuration and credentials
+auth.json
+secrets/

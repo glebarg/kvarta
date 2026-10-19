@@ -21,6 +21,21 @@ const coffees = [
 
 type Interest = 'subscription' | 'one_time' | 'question'
 
+function normalizeBelarusPhone(value: string): string | null {
+  const digits = value.replace(/\D/g, '')
+
+  // Международный формат: +375291234567
+  if (digits.startsWith('375') && digits.length === 12) {
+    return `+${digits}`
+  }
+
+  // Внутренний формат Беларуси: 80291234567
+  if (digits.startsWith('80') && digits.length === 11) {
+    return `+375${digits.slice(2)}`
+  }
+
+  return null
+}
 
 type Touch = {
   page_url: string
@@ -161,12 +176,21 @@ export default function App() {
   async function submitLead(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setStatus(null)
+    const normalizedPhone = normalizeBelarusPhone(phone)
+
+    if (!normalizedPhone) {
+      setStatus({
+        type: 'error',
+        message: 'Введите корректный белорусский номер телефона, например +375 29 123-45-67.',
+      })
+      return
+  }
     setSubmitting(true)
     try {
       const response = await fetch(`${API_URL}/api/lead`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, phone, interest, comment: comment || null, ...getTracking() }),
+        body: JSON.stringify({ name, phone: normalizedPhone, interest, comment: comment || null, ...getTracking() }),
       })
       const result = await response.json()
       if (!response.ok) {
