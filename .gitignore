@@ -23,6 +23,7 @@ env/
 
 # Local databases
 *.db
+!kvarta.db
 *.sqlite
 *.sqlite3
 *.db-journal
